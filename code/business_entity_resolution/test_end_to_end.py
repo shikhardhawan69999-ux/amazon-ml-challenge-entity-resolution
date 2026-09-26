@@ -51,12 +51,13 @@ def run_end_to_end_test():
     config.XGB_PARAMS['device'] = 'cpu'
     model = xgb.XGBClassifier(**config.XGB_PARAMS)
     model.fit(X, y)
+    model.save_model("xgb_model.json")
     
     # Clean up temp file
     if os.path.exists('src/features_temp.py'):
         os.remove('src/features_temp.py')
     
-    print("\n✅ End-to-End Test Passed! The algorithm successfully extracted features and trained the model.")
+    print("\nEnd-to-End Test Passed! The algorithm successfully extracted features and trained the model.")
 
 if __name__ == "__main__":
     run_end_to_end_test()

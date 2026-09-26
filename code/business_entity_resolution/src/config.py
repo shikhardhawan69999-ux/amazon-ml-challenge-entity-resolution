@@ -7,7 +7,7 @@ TEST_DIR = os.path.join(DATA_DIR, "test")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 
 # Blocking parameters (Tuning recall vs runtime)
-TFIDF_NGRAM_RANGE = (2, 4)
+TFIDF_NGRAM_RANGE = (3, 3) # Restrict to trigrams only to prevent massive RAM spikes
 TFIDF_MAX_FEATURES = 30000  # Lowered drastically to prevent 24GB RAM OOM
 KNN_NEIGHBORS = 15          # Lowered to 15 to speed up processing of 55 million pairs
 

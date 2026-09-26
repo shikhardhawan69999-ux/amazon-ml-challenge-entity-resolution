@@ -9,9 +9,11 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
                                  ngram_range=config.TFIDF_NGRAM_RANGE, 
                                  max_features=config.TFIDF_MAX_FEATURES)
     
-    # Fit on all available data to create a robust shared vocabulary
+    # Fit on a 1 million row sample to prevent MemoryError
+    # TfidfVectorizer stores all unique n-grams before truncating, which crashes 24GB RAM on 12.5M rows
     all_text = pd.concat([df_s1['combined_text'], df_s2s3['combined_text']])
-    vectorizer.fit(all_text)
+    sample_text = all_text.sample(n=min(len(all_text), 1000000), random_state=42)
+    vectorizer.fit(sample_text)
     
     s1_vecs = vectorizer.transform(df_s1['combined_text'])
     s2s3_vecs = vectorizer.transform(df_s2s3['combined_text'])
