@@ -33,12 +33,14 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     del s2s3_counts
     gc.collect()
     
-    print("Running Nearest Neighbors for candidate generation (in batches to save RAM)...")
-    nn = NearestNeighbors(n_neighbors=n_neighbors, metric='cosine', n_jobs=-1)
+    print("Running Nearest Neighbors (Single-threaded n_jobs=1 to prevent Joblib RAM explosion)...")
+    # n_jobs=-1 spawns 16 threads, which attempts to copy 8GB memory chunks 16 times = CRASH
+    nn = NearestNeighbors(n_neighbors=n_neighbors, metric='cosine', n_jobs=1)
     nn.fit(s2s3_vecs)
     
     pairs = []
-    batch_size = 25000  # Process 25k queries at a time for maximum RAM safety
+    # 200 * 10,000,000 * 4 bytes = ~8 GB maximum RAM per batch. Extremely safe!
+    batch_size = 200  
     
     # Extract S1 and S2/S3 IDs to fast lists for indexing
     s1_ids = df_s1['entity_id'].values
