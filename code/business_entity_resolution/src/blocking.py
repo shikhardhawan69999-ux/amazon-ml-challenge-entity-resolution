@@ -33,35 +33,50 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     del s2s3_counts
     gc.collect()
     
-    print("Running Nearest Neighbors (Single-threaded n_jobs=1 to prevent Joblib RAM explosion)...")
-    # n_jobs=-1 spawns 16 threads, which attempts to copy 8GB memory chunks 16 times = CRASH
-    nn = NearestNeighbors(n_neighbors=n_neighbors, metric='cosine', n_jobs=1)
-    nn.fit(s2s3_vecs)
+    print("Running Ultra-Fast Custom Sparse KNN (Bypassing Scikit-Learn's RAM bloat)...")
+    
+    # Transpose S2/S3 once for fast dot product
+    s2s3_vecs_T = s2s3_vecs.T
     
     pairs = []
-    # 200 * 10,000,000 * 4 bytes = ~8 GB maximum RAM per batch. Extremely safe!
-    batch_size = 200  
+    # We can now safely use a much larger batch size because the output remains SPARSE!
+    batch_size = 5000  
     
-    # Extract S1 and S2/S3 IDs to fast lists for indexing
+    # Extract IDs
     s1_ids = df_s1['entity_id'].values
     s2s3_ids = df_s2s3['entity_id'].values
     
+    import numpy as np
+    
     for start_idx in range(0, s1_vecs.shape[0], batch_size):
         end_idx = min(start_idx + batch_size, s1_vecs.shape[0])
-        print(f"Processing KNN Batch: {start_idx} to {end_idx}...")
+        print(f"Processing Fast KNN Batch: {start_idx} to {end_idx}...")
         
-        batch_distances, batch_indices = nn.kneighbors(s1_vecs[start_idx:end_idx])
+        # 1. Sparse Dot Product (Result is SPARSE, taking only MBs instead of GBs of RAM)
+        similarity_matrix = s1_vecs[start_idx:end_idx].dot(s2s3_vecs_T)
         
-        for i in range(batch_distances.shape[0]):
+        # 2. Extract Top K efficiently
+        for i in range(similarity_matrix.shape[0]):
             global_s1_idx = start_idx + i
             s1_id = s1_ids[global_s1_idx]
             
-            for j in range(n_neighbors):
-                s2s3_idx = batch_indices[i, j]
-                s2s3_id = s2s3_ids[s2s3_idx]
-                score = 1.0 - batch_distances[i, j]
+            # Get only the non-zero similarities for this specific query
+            row_data = similarity_matrix.data[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
+            row_indices = similarity_matrix.indices[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
+            
+            if len(row_data) == 0:
+                continue
                 
+            # Find the indices of the top K elements
+            k = min(n_neighbors, len(row_data))
+            
+            # np.argpartition is extremely fast for finding top K
+            top_k_idx = np.argpartition(row_data, -k)[-k:]
+            
+            for idx in top_k_idx:
+                score = row_data[idx]
                 if score > 0.15:
+                    s2s3_id = s2s3_ids[row_indices[idx]]
                     pairs.append({'source1_entity_id': s1_id, 'candidate_entity_id': s2s3_id, 'blocking_score': score})
                     
     print(f"Blocking complete. Generated {len(pairs)} candidate pairs.")
