@@ -1,22 +1,33 @@
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import HashingVectorizer, TfidfTransformer
 from sklearn.neighbors import NearestNeighbors
+import gc
 from src import config
 
 def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
-    print("Vectorizing text for blocking...")
-    vectorizer = TfidfVectorizer(analyzer='char_wb', 
-                                 ngram_range=config.TFIDF_NGRAM_RANGE, 
-                                 max_features=config.TFIDF_MAX_FEATURES)
+    print("Vectorizing text for blocking (Using HashingVectorizer for Ultra-Low RAM)...")
     
-    # Fit on a 1 million row sample to prevent MemoryError
-    # TfidfVectorizer stores all unique n-grams before truncating, which crashes 24GB RAM on 12.5M rows
-    all_text = pd.concat([df_s1['combined_text'], df_s2s3['combined_text']])
-    sample_text = all_text.sample(n=min(len(all_text), 1000000), random_state=42)
-    vectorizer.fit(sample_text)
+    # HashingVectorizer requires ZERO RAM for vocabulary building
+    vectorizer = HashingVectorizer(analyzer='char_wb', 
+                                   ngram_range=config.TFIDF_NGRAM_RANGE, 
+                                   n_features=config.TFIDF_MAX_FEATURES,
+                                   norm=None, 
+                                   alternate_sign=False)
     
-    s1_vecs = vectorizer.transform(df_s1['combined_text'])
-    s2s3_vecs = vectorizer.transform(df_s2s3['combined_text'])
+    s1_counts = vectorizer.transform(df_s1['combined_text'])
+    s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
+    
+    print("Applying TF-IDF Weights...")
+    tfidf = TfidfTransformer()
+    tfidf.fit(s2s3_counts) # Fit weights only on the larger dataset to save memory
+    
+    s1_vecs = tfidf.transform(s1_counts)
+    s2s3_vecs = tfidf.transform(s2s3_counts)
+    
+    # Aggressively free up RAM before KNN
+    del s1_counts
+    del s2s3_counts
+    gc.collect()
     
     print("Running Nearest Neighbors for candidate generation (in batches to save RAM)...")
     nn = NearestNeighbors(n_neighbors=n_neighbors, metric='cosine', n_jobs=-1)
