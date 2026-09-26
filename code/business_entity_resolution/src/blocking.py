@@ -2,9 +2,8 @@ import pandas as pd
 from sklearn.feature_extraction.text import HashingVectorizer, TfidfTransformer
 from sklearn.neighbors import NearestNeighbors
 import gc
-from src import config
-
 import numpy as np
+from src import config
 
 def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     print("Vectorizing text for blocking (Using HashingVectorizer for Ultra-Low RAM)...")
@@ -52,8 +51,6 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     out_s1 = []
     out_s2 = []
     out_scores = []
-    
-    import numpy as np
     
     for start_idx in range(0, s1_vecs.shape[0], batch_size):
         end_idx = min(start_idx + batch_size, s1_vecs.shape[0])
