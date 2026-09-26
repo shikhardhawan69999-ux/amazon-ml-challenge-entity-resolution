@@ -38,13 +38,18 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     # Transpose S2/S3 once for fast dot product
     s2s3_vecs_T = s2s3_vecs.T
     
-    pairs = []
     # We can now safely use a much larger batch size because the output remains SPARSE!
     batch_size = 5000  
     
     # Extract IDs
     s1_ids = df_s1['entity_id'].values
     s2s3_ids = df_s2s3['entity_id'].values
+    
+    # KAGGLE TRICK: Never use a list of dictionaries for 30 million rows (Takes 8GB+ RAM). 
+    # Use parallel lists of primitives (Takes < 2GB RAM).
+    out_s1 = []
+    out_s2 = []
+    out_scores = []
     
     import numpy as np
     
@@ -76,8 +81,13 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
             for idx in top_k_idx:
                 score = row_data[idx]
                 if score > 0.15:
-                    s2s3_id = s2s3_ids[row_indices[idx]]
-                    pairs.append({'source1_entity_id': s1_id, 'candidate_entity_id': s2s3_id, 'blocking_score': score})
+                    out_s1.append(s1_id)
+                    out_s2.append(s2s3_ids[row_indices[idx]])
+                    out_scores.append(score)
                     
-    print(f"Blocking complete. Generated {len(pairs)} candidate pairs.")
-    return pd.DataFrame(pairs)
+    print(f"Blocking complete. Generated {len(out_s1)} candidate pairs.")
+    return pd.DataFrame({
+        'source1_entity_id': out_s1,
+        'candidate_entity_id': out_s2,
+        'blocking_score': out_scores
+    })
