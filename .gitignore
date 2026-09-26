@@ -1,0 +1,27 @@
+# Datasets and outputs (Do not commit gigabytes of data!)
+dataset/
+output/
+*.tsv
+*.csv
+
+# Models
+*.json
+*.bin
+*.pt
+*.pkl
+xgb_model.json
+
+# Virtual Environments
+venv/
+env/
+.env
+
+# Python Caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Build artifacts (from PyInstaller)
+build/
+dist/
+*.spec
