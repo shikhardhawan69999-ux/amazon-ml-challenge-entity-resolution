@@ -8,8 +8,8 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 
 # Blocking parameters (Tuning recall vs runtime)
 TFIDF_NGRAM_RANGE = (2, 4)
-TFIDF_MAX_FEATURES = 150000
-KNN_NEIGHBORS = 25
+TFIDF_MAX_FEATURES = 30000  # Lowered drastically to prevent 24GB RAM OOM
+KNN_NEIGHBORS = 15          # Lowered to 15 to speed up processing of 55 million pairs
 
 # Feature engineering parameters
 EMBEDDING_MODEL = 'all-MiniLM-L6-v2' # 22M param model, extremely fast, MIT licensed
