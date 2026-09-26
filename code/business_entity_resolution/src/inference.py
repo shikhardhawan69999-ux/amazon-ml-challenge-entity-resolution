@@ -29,7 +29,7 @@ def run_inference():
     candidate_out.to_csv(f"{config.OUTPUT_DIR}/candidate_pairs.tsv", sep="\t", index=False)
     
     feat_df = features.generate_features(candidates, s1, s2s3)
-    feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'addr_jaro', 'addr_ratio', 'country_match', 'blocking_score', 'semantic_similarity']
+    feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'name_core_jaro', 'addr_jaro', 'addr_ratio', 'pincode_match', 'country_match', 'blocking_score', 'semantic_similarity']
     
     print("Running Inference...")
     model = xgb.XGBClassifier()

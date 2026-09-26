@@ -35,7 +35,7 @@ def load_and_prepare_training_data():
 
 def train_model():
     df = load_and_prepare_training_data()
-    feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'addr_jaro', 'addr_ratio', 'country_match', 'blocking_score', 'semantic_similarity']
+    feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'name_core_jaro', 'addr_jaro', 'addr_ratio', 'pincode_match', 'country_match', 'blocking_score', 'semantic_similarity']
     
     X = df[feature_cols]
     y = df['label']
