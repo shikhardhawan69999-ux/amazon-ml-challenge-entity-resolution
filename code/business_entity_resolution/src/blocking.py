@@ -23,7 +23,7 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     nn.fit(s2s3_vecs)
     
     pairs = []
-    batch_size = 50000  # Process 50k queries at a time to prevent RAM crash
+    batch_size = 25000  # Process 25k queries at a time for maximum RAM safety
     
     # Extract S1 and S2/S3 IDs to fast lists for indexing
     s1_ids = df_s1['entity_id'].values
