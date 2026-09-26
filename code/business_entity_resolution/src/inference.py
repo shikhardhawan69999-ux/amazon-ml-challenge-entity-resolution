@@ -31,11 +31,17 @@ def run_inference():
     feat_df = features.generate_features(candidates, s1, s2s3)
     feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'name_core_jaro', 'addr_jaro', 'addr_ratio', 'pincode_match', 'country_match', 'blocking_score', 'semantic_similarity']
     
-    print("Running Inference...")
-    model = xgb.XGBClassifier()
-    model.load_model(f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json")
+    print("Running Ensemble Inference (XGBoost + LightGBM)...")
+    xgb_model = xgb.XGBClassifier()
+    xgb_model.load_model(f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json")
+    xgb_preds = xgb_model.predict_proba(feat_df[feature_cols])[:, 1]
     
-    feat_df['match_prob'] = model.predict_proba(feat_df[feature_cols])[:, 1]
+    import lightgbm as lgb
+    lgbm_booster = lgb.Booster(model_file=f"{config.BASE_DIR}/code/business_entity_resolution/lgbm_model.txt")
+    lgbm_preds = lgbm_booster.predict(feat_df[feature_cols])
+    
+    # KAGGLE WAY: Average the predictions for maximum confidence
+    feat_df['match_prob'] = (xgb_preds + lgbm_preds) / 2.0
     
     # Apply strict F0.5 precision threshold
     print(f"Applying High-Precision Threshold: {config.MATCH_THRESHOLD}")

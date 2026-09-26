@@ -28,5 +28,17 @@ XGB_PARAMS = {
     'colsample_bytree': 0.8
 }
 
+LGBM_PARAMS = {
+    'objective': 'binary',
+    'metric': 'auc',
+    'learning_rate': 0.05,
+    'max_depth': 6,
+    'n_estimators': 800,
+    'n_jobs': -1, # <--- FORCE ALL 16 RYZEN THREADS
+    'subsample': 0.8,
+    'colsample_bytree': 0.8,
+    'device_type': 'gpu' # <--- ENABLE GPU ACCELERATION
+}
+
 # Post-processing threshold optimized for F0.5 (Precision-heavy)
 MATCH_THRESHOLD = 0.88

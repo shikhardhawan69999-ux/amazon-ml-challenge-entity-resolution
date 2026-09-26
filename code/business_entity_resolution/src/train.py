@@ -40,13 +40,24 @@ def train_model():
     X = df[feature_cols]
     y = df['label']
     
-    print("Training XGBoost Classifier...")
-    model = xgb.XGBClassifier(**config.XGB_PARAMS)
-    model.fit(X, y)
+    print("\n[1/2] Training XGBoost Classifier on RTX 4050...")
+    xgb_model = xgb.XGBClassifier(**config.XGB_PARAMS)
+    xgb_model.fit(X, y)
     
-    model_path = f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json"
-    model.save_model(model_path)
-    print(f"Model trained and saved to {model_path}")
+    xgb_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json"
+    xgb_model.save_model(xgb_model_path)
+    print(f"XGBoost Model saved to {xgb_model_path}")
+    
+    print("\n[2/2] Training LightGBM Classifier on RTX 4050...")
+    import lightgbm as lgb
+    lgbm_model = lgb.LGBMClassifier(**config.LGBM_PARAMS)
+    lgbm_model.fit(X, y)
+    
+    lgbm_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/lgbm_model.txt"
+    lgbm_model.booster_.save_model(lgbm_model_path)
+    print(f"LightGBM Model saved to {lgbm_model_path}")
+    
+    print("\n✅ Ensemble Dual-Training Complete! Models are ready for inference.")
 
 if __name__ == "__main__":
     train_model()
