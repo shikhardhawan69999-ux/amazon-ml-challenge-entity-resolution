@@ -4,15 +4,19 @@ from sklearn.neighbors import NearestNeighbors
 import gc
 from src import config
 
+import numpy as np
+
 def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     print("Vectorizing text for blocking (Using HashingVectorizer for Ultra-Low RAM)...")
     
     # HashingVectorizer requires ZERO RAM for vocabulary building
+    # dtype=np.float32 cuts the final sparse matrix memory strictly in HALF
     vectorizer = HashingVectorizer(analyzer='char_wb', 
                                    ngram_range=config.TFIDF_NGRAM_RANGE, 
                                    n_features=config.TFIDF_MAX_FEATURES,
                                    norm=None, 
-                                   alternate_sign=False)
+                                   alternate_sign=False,
+                                   dtype=np.float32)
     
     s1_counts = vectorizer.transform(df_s1['combined_text'])
     s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
