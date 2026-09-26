@@ -1,7 +1,7 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-DATA_DIR = os.path.join(BASE_DIR, "dataset")
+DATA_DIR = os.path.join(BASE_DIR, "student_resource", "dataset")
 TRAIN_DIR = os.path.join(DATA_DIR, "train")
 TEST_DIR = os.path.join(DATA_DIR, "test")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")

@@ -46,3 +46,4 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
                     pairs.append({'source1_entity_id': s1_id, 'candidate_entity_id': s2s3_id, 'blocking_score': score})
                     
     print(f"Blocking complete. Generated {len(pairs)} candidate pairs.")
+    return pd.DataFrame(pairs)
