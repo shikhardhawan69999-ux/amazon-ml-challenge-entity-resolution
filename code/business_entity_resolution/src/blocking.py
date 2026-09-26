@@ -18,19 +18,19 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
                                    alternate_sign=False,
                                    dtype=np.float32)
     
-    s1_counts = vectorizer.transform(df_s1['combined_text'])
+    print("Applying TF-IDF Weights (In-Place to save 4GB RAM)...")
+    # copy=False prevents TfidfTransformer from creating a duplicate 3GB sparse matrix
+    tfidf = TfidfTransformer(copy=False) 
+    
     s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
-    
-    print("Applying TF-IDF Weights...")
-    tfidf = TfidfTransformer()
-    tfidf.fit(s2s3_counts) # Fit weights only on the larger dataset to save memory
-    
-    s1_vecs = tfidf.transform(s1_counts)
-    s2s3_vecs = tfidf.transform(s2s3_counts)
-    
-    # Aggressively free up RAM before KNN
-    del s1_counts
+    tfidf.fit(s2s3_counts) # Fit weights
+    s2s3_vecs = tfidf.transform(s2s3_counts) # Transforms IN-PLACE
     del s2s3_counts
+    gc.collect()
+    
+    s1_counts = vectorizer.transform(df_s1['combined_text'])
+    s1_vecs = tfidf.transform(s1_counts) # Transforms IN-PLACE
+    del s1_counts
     gc.collect()
     
     print("Running Ultra-Fast Custom Sparse KNN (Bypassing Scikit-Learn's RAM bloat)...")
