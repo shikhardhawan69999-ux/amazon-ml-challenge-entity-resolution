@@ -22,6 +22,7 @@ XGB_PARAMS = {
     'max_depth': 6,
     'tree_method': 'hist',
     'device': 'cuda', # <--- ENABLE GPU ACCELERATION
+    'n_jobs': -1, # <--- FORCE ALL 16 RYZEN THREADS
     'n_estimators': 800,
     'subsample': 0.8,
     'colsample_bytree': 0.8
