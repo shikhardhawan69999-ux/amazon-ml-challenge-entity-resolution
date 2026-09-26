@@ -38,8 +38,10 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     # Transpose S2/S3 once for fast dot product
     s2s3_vecs_T = s2s3_vecs.T
     
-    # We can now safely use a much larger batch size because the output remains SPARSE!
-    batch_size = 5000  
+    # Common trigrams like "ltd" or "com" cause the sparse dot product to become densely populated.
+    # To prevent the similarity matrix from exploding in RAM, we use a micro-batch size of 50.
+    # The dot product is insanely fast, so 50 queries per batch is both safe and lightning fast!
+    batch_size = 50  
     
     # Extract IDs
     s1_ids = df_s1['entity_id'].values
