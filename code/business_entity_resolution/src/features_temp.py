@@ -19,6 +19,7 @@ def generate_features(candidate_pairs, df_s1, df_s2s3):
     s1_texts, s2s3_texts = [], []
     
     # Iterate over tuples (very fast compared to iterrows or apply)
+    from rapidfuzz.distance import JaroWinkler
     for row in candidate_pairs.itertuples(index=False):
         s1 = s1_dict[row.source1_entity_id]
         s2 = s2s3_dict[row.candidate_entity_id]
@@ -27,13 +28,13 @@ def generate_features(candidate_pairs, df_s1, df_s2s3):
         n1_core, n2_core = s1['business_name_core'], s2['business_name_core']
         a1, a2 = s1['business_address_clean'], s2['business_address_clean']
         
-        name_jaro.append(fuzz.jaro_winkler(n1, n2) / 100.0)
+        name_jaro.append(JaroWinkler.normalized_similarity(n1, n2))
         name_ratio.append(fuzz.ratio(n1, n2) / 100.0)
         name_token_sort.append(fuzz.token_sort_ratio(n1, n2) / 100.0)
         
-        name_core_jaro.append(fuzz.jaro_winkler(n1_core, n2_core) / 100.0)
+        name_core_jaro.append(JaroWinkler.normalized_similarity(n1_core, n2_core))
         
-        addr_jaro.append(fuzz.jaro_winkler(a1, a2) / 100.0)
+        addr_jaro.append(JaroWinkler.normalized_similarity(a1, a2))
         addr_ratio.append(fuzz.ratio(a1, a2) / 100.0)
         
         # Pincode extraction logic
