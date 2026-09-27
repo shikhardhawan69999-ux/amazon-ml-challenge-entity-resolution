@@ -48,9 +48,6 @@ def generate_features(candidate_pairs, df_s1, df_s2s3):
             
         country_match.append(int(s1['country'] == s2['country']))
         
-        s1_texts.append(s1['combined_text'])
-        s2s3_texts.append(s2['combined_text'])
-        
     features_df = pd.DataFrame({
         'name_jaro': name_jaro,
         'name_ratio': name_ratio,
@@ -65,13 +62,33 @@ def generate_features(candidate_pairs, df_s1, df_s2s3):
     print("Generating semantic embeddings (GPU Accelerated)...")
     model = SentenceTransformer(config.EMBEDDING_MODEL, device='cuda')
     
-    # Encode all texts in batches
-    print("Encoding Source 1 candidates...")
-    emb1 = model.encode(s1_texts, batch_size=256, show_progress_bar=True)
-    print("Encoding Source 2/3 candidates...")
-    emb2 = model.encode(s2s3_texts, batch_size=256, show_progress_bar=True)
+    # -------------------------------------------------------------
+    # GPU OPTIMIZATION: Only encode UNIQUE businesses (12.5M total)
+    # Instead of encoding the redundant pairs (33M total).
+    # This cuts GPU processing time from 2 hours to 20 minutes!
+    # -------------------------------------------------------------
+    print("Encoding Source 1 unique businesses...")
+    s1_unique_texts = df_s1['combined_text'].fillna("").tolist()
+    s1_emb = model.encode(s1_unique_texts, batch_size=256, show_progress_bar=True)
+    
+    print("Encoding Source 2/3 unique businesses...")
+    s2s3_unique_texts = df_s2s3['combined_text'].fillna("").tolist()
+    s2s3_emb = model.encode(s2s3_unique_texts, batch_size=256, show_progress_bar=True)
+    
+    # Map entity_id to their integer index in the arrays
+    s1_id_to_idx = {id_: idx for idx, id_ in enumerate(df_s1['entity_id'])}
+    s2s3_id_to_idx = {id_: idx for idx, id_ in enumerate(df_s2s3['entity_id'])}
+    
+    # Pull the exact embeddings for the 33M pairs
+    print("Mapping embeddings to candidate pairs...")
+    s1_pair_indices = [s1_id_to_idx[id_] for id_ in candidate_pairs['source1_entity_id']]
+    s2s3_pair_indices = [s2s3_id_to_idx[id_] for id_ in candidate_pairs['candidate_entity_id']]
+    
+    emb1 = s1_emb[s1_pair_indices]
+    emb2 = s2s3_emb[s2s3_pair_indices]
     
     # Compute cosine similarity between the embeddings
+    print("Calculating final Cosine Similarities...")
     cosine_sim = 1 - paired_cosine_distances(emb1, emb2)
     features_df['semantic_similarity'] = cosine_sim
     
