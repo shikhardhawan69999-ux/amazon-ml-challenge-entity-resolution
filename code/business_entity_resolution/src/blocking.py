@@ -65,9 +65,9 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS, p
     # Transpose S2/S3 once for fast dot product
     s2s3_vecs_T = s2s3_vecs.T
     
-    # Now that we have physically eliminated all dense noise columns (like "ltd"), 
-    # the sparse dot product is back to being TRULY sparse. We can safely do 5000 at a time!
-    batch_size = 5000  
+    # the sparse dot product is back to being TRULY sparse.
+    # Laptop has 24GB RAM, so we can push this to 7000 for maximum speed!
+    batch_size = 7000  
     
     # Extract IDs
     s1_ids = df_s1['entity_id'].values
