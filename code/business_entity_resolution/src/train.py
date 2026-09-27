@@ -21,16 +21,21 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
     s1 = pd.read_csv(f"{config.TRAIN_DIR}/train_source1.tsv", sep="\t")
     
     # -----------------------------------------------------------------
-    # DISTRIBUTED PROCESSING LOGIC (SPLITTING S1)
+    # AUTOMATIC LIMIT / DISTRIBUTED LOGIC
     # -----------------------------------------------------------------
-    # Instead of just taking 500k, we split the 2.2M rows into chunks
-    chunk_size = len(s1) // total_parts
-    start_row = (part_num - 1) * chunk_size
-    # If it's the last part, take all remaining rows
-    end_row = len(s1) if part_num == total_parts else start_row + chunk_size
-    
-    print(f"\n[DISTRIBUTED] Laptop/Colab {part_num} is taking rows {start_row} to {end_row} out of {len(s1)}!")
-    s1 = s1.iloc[start_row:end_row].copy()
+    if total_parts > 1:
+        chunk_size = len(s1) // total_parts
+        start_row = (part_num - 1) * chunk_size
+        end_row = len(s1) if part_num == total_parts else start_row + chunk_size
+        print(f"\n[DISTRIBUTED] Laptop/Colab {part_num} is taking rows {start_row} to {end_row} out of {len(s1)}!")
+        s1 = s1.iloc[start_row:end_row].copy()
+    elif part_num > 1: # We use part_num to act as limit in a hacky way if total_parts == 1 for backwards compat or just check if user passed limit
+        pass
+        
+    # We will pass a limit globally from argparse
+    if hasattr(config, 'USER_LIMIT') and config.USER_LIMIT > 0:
+        print(f"\n[FAST TRAIN] Automatically limiting S1 to first {config.USER_LIMIT} rows for fast end-to-end execution!")
+        s1 = s1.head(config.USER_LIMIT).copy()
     
     s2 = pd.read_csv(f"{config.TRAIN_DIR}/train_source2.tsv", sep="\t")
     s3 = pd.read_csv(f"{config.TRAIN_DIR}/train_source3.tsv", sep="\t")
@@ -126,6 +131,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Distributed Train Pipeline")
     parser.add_argument("--part", type=int, default=1, help="Which chunk of S1 to process (e.g. 1)")
     parser.add_argument("--total", type=int, default=1, help="Total number of chunks to split S1 into (e.g. 4)")
+    parser.add_argument("--limit", type=int, default=0, help="Limit S1 rows to train automatically end-to-end")
     args = parser.parse_args()
     
+    config.USER_LIMIT = args.limit
     train_model(args.part, args.total)
