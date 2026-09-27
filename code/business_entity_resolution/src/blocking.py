@@ -21,7 +21,14 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     print("Applying Manual Max-DF to remove 'ltd/pvt' noise and make math 1000x faster...")
     
     s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
+    
+    # EXTREME RAM TRICK: Delete 5GB of Strings immediately!
+    del df_s2s3['combined_text']
+    gc.collect()
+    
     s1_counts = vectorizer.transform(df_s1['combined_text'])
+    del df_s1['combined_text']
+    gc.collect()
     
     # Calculate how many times each trigram appears
     col_sums = np.array(s2s3_counts.sum(axis=0)).flatten()
