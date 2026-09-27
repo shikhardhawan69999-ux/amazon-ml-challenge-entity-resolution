@@ -35,7 +35,15 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
     s2 = pd.read_csv(f"{config.TRAIN_DIR}/train_source2.tsv", sep="\t")
     s3 = pd.read_csv(f"{config.TRAIN_DIR}/train_source3.tsv", sep="\t")
     gt = pd.read_csv(f"{config.TRAIN_DIR}/train_ground_truth.tsv", sep="\t")
+    
     s2s3 = pd.concat([s2, s3], ignore_index=True)
+    
+    # CRITICAL RAM FIX: S2 and S3 are 2.5GB each. Concatenating them creates a 5GB S2S3.
+    # If we don't delete S2 and S3, Python keeps all 3 in memory (10GB+ total)!
+    import gc
+    del s2
+    del s3
+    gc.collect()
     
     print("Preprocessing...")
     s1 = preprocess.preprocess_dataframe(s1)
