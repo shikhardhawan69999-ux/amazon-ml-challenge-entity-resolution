@@ -16,8 +16,8 @@ def load_and_prepare_training_data():
     print("Loading training data...")
     s1 = pd.read_csv(f"{config.TRAIN_DIR}/train_source1.tsv", sep="\t")
     
-    print("\n[DEBUG] Taking a 1,00,000 row sample of S1 to test the full pipeline fast! (30 min run)")
-    s1 = s1.head(100000).copy()
+    print("\n[DEBUG] Taking a 5,00,000 row sample of S1 to meet the 6 PM Deadline! (2 hour run)")
+    s1 = s1.head(500000).copy()
     
     s2 = pd.read_csv(f"{config.TRAIN_DIR}/train_source2.tsv", sep="\t")
     s3 = pd.read_csv(f"{config.TRAIN_DIR}/train_source3.tsv", sep="\t")
