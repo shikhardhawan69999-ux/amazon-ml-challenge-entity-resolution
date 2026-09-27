@@ -49,31 +49,17 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
     s1 = preprocess.preprocess_dataframe(s1)
     s2s3 = preprocess.preprocess_dataframe(s2s3)
     
-    s1_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s1_clean.parquet"
-    s2s3_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s2s3_clean.parquet"
-    
+
     import gc
     # CHECKPOINT 1: Check if Blocking is already done
     if os.path.exists(candidates_ckpt):
-        print("\n[CHECKPOINT] Found existing Blocking pairs! Loading candidates directly...")
+        print(f"\n[CHECKPOINT] Found existing Blocking pairs for Part {part_num}! Loading candidates directly...")
         candidates = pd.read_csv(candidates_ckpt)
-        # We still need to save to disk because features step expects it from disk now
-        s1.to_parquet(s1_clean_path, index=False)
-        s2s3.to_parquet(s2s3_clean_path, index=False)
     else:
-        print("\n[RAM OPTIMIZATION] Offloading 12GB of extra Pandas columns to disk (Using PARQUET for 100x Speed)...")
-        # Save FULL dataframes to disk ultra-fast
-        s1.to_parquet(s1_clean_path, index=False)
-        s2s3.to_parquet(s2s3_clean_path, index=False)
-        
+        print("\n[RAM OPTIMIZATION] Passing data directly to Blocking (Data is small enough to stay in RAM)...")
         # Keep ONLY the 2 columns needed for blocking to free up maximum RAM
         s1_blocking = s1[['entity_id', 'combined_text']].copy()
         s2s3_blocking = s2s3[['entity_id', 'combined_text']].copy()
-        
-        # Physically delete the massive 12GB dataframes from RAM
-        del s1
-        del s2s3
-        gc.collect()
         
         candidates = blocking.generate_candidate_pairs(s1_blocking, s2s3_blocking, part_num=part_num)
         print(f"\n[CHECKPOINT] Saving Blocking pairs to {candidates_ckpt}...")
@@ -83,9 +69,7 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
         del s2s3_blocking
         gc.collect()
     
-    print("\n[RAM OPTIMIZATION] Reloading full Pandas data from disk for Feature Extraction...")
-    s1 = pd.read_parquet(s1_clean_path)
-    s2s3 = pd.read_parquet(s2s3_clean_path)
+    print("\n[INFO] Moving to Feature Extraction...")
         
     feat_df = features.generate_features(candidates, s1, s2s3)
     
