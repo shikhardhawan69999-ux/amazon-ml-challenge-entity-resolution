@@ -7,6 +7,14 @@ from src import config
 def calculate_features():
     print("Starting STEP 4: FEATURE ENGINEERING...")
     
+    # FORCE TEMP FILES TO D: DRIVE TO SAVE C: DRIVE!
+    temp_dir = f"{config.BASE_DIR}/code/business_entity_resolution/artifacts/temp"
+    os.makedirs(temp_dir, exist_ok=True)
+    os.environ["TMPDIR"] = temp_dir
+    os.environ["TEMP"] = temp_dir
+    os.environ["TMP"] = temp_dir
+    os.environ["POLARS_TEMP_DIR"] = temp_dir
+    
     start_time = time.time()
     
     norm_dir = f"{config.BASE_DIR}/code/business_entity_resolution/artifacts/normalized"
