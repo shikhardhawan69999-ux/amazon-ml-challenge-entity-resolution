@@ -75,45 +75,86 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     
     # KAGGLE TRICK: Never use a list of dictionaries for 30 million rows (Takes 8GB+ RAM). 
     # Use parallel lists of primitives (Takes < 2GB RAM).
-    out_s1 = []
-    out_s2 = []
-    out_scores = []
+    import os
     
-    for start_idx in range(0, s1_vecs.shape[0], batch_size):
-        end_idx = min(start_idx + batch_size, s1_vecs.shape[0])
-        print(f"Processing Fast KNN Batch: {start_idx} to {end_idx}...")
-        
-        # 1. Sparse Dot Product (Result is SPARSE, taking only MBs instead of GBs of RAM)
-        similarity_matrix = s1_vecs[start_idx:end_idx].dot(s2s3_vecs_T)
-        
-        # 2. Extract Top K efficiently
-        for i in range(similarity_matrix.shape[0]):
-            global_s1_idx = start_idx + i
-            s1_id = s1_ids[global_s1_idx]
+    # ---------------------------------------------------------
+    # INCREMENTAL SAVE & RESUME MECHANISM
+    # ---------------------------------------------------------
+    checkpoint_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_incremental.csv"
+    start_batch_idx = 0
+    
+    if os.path.exists(checkpoint_file):
+        print(f"Found incremental checkpoint at {checkpoint_file}!")
+        # Find how many lines are already processed to know where to resume
+        # We can't just count lines because 1 query = multiple lines.
+        # Instead we read the last processed source1_entity_id, but it's easier to just store state.
+        state_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_state.txt"
+        if os.path.exists(state_file):
+            with open(state_file, "r") as f:
+                start_batch_idx = int(f.read().strip())
+            print(f"Resuming Fast KNN from batch {start_batch_idx}...")
+        else:
+            print("State file missing, starting from scratch...")
+            start_batch_idx = 0
+            if os.path.exists(checkpoint_file): os.remove(checkpoint_file)
             
-            # Get only the non-zero similarities for this specific query
-            row_data = similarity_matrix.data[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
-            row_indices = similarity_matrix.indices[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
+    # We will write directly to disk every 100,000 queries to save RAM and provide safety
+    queries_since_last_save = 0
+    out_s1, out_s2, out_scores = [], [], []
+    
+    # Open file in append mode if resuming, else write mode
+    mode = 'a' if start_batch_idx > 0 else 'w'
+    with open(checkpoint_file, mode) as f:
+        if mode == 'w':
+            f.write("source1_entity_id,candidate_entity_id,blocking_score\n")
             
-            if len(row_data) == 0:
-                continue
+        for start_idx in range(start_batch_idx, s1_vecs.shape[0], batch_size):
+            end_idx = min(start_idx + batch_size, s1_vecs.shape[0])
+            print(f"Processing Fast KNN Batch: {start_idx} to {end_idx}...")
+            
+            # 1. Sparse Dot Product
+            similarity_matrix = s1_vecs[start_idx:end_idx].dot(s2s3_vecs_T)
+            
+            # 2. Extract Top K efficiently
+            for i in range(similarity_matrix.shape[0]):
+                global_s1_idx = start_idx + i
+                s1_id = s1_ids[global_s1_idx]
                 
-            # Find the indices of the top K elements
-            k = min(n_neighbors, len(row_data))
-            
-            # np.argpartition is extremely fast for finding top K
-            top_k_idx = np.argpartition(row_data, -k)[-k:]
-            
-            for idx in top_k_idx:
-                score = row_data[idx]
-                if score > 0.15:
-                    out_s1.append(s1_id)
-                    out_s2.append(s2s3_ids[row_indices[idx]])
-                    out_scores.append(score)
+                row_data = similarity_matrix.data[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
+                row_indices = similarity_matrix.indices[similarity_matrix.indptr[i]:similarity_matrix.indptr[i+1]]
+                
+                if len(row_data) == 0:
+                    continue
                     
-    print(f"Blocking complete. Generated {len(out_s1)} candidate pairs.")
-    return pd.DataFrame({
-        'source1_entity_id': out_s1,
-        'candidate_entity_id': out_s2,
-        'blocking_score': out_scores
-    })
+                k = min(n_neighbors, len(row_data))
+                top_k_idx = np.argpartition(row_data, -k)[-k:]
+                
+                for idx in top_k_idx:
+                    score = row_data[idx]
+                    if score > 0.15:
+                        out_s1.append(s1_id)
+                        out_s2.append(s2s3_ids[row_indices[idx]])
+                        out_scores.append(score)
+                        
+            queries_since_last_save += batch_size
+            
+            # INCREMENTAL SAVE EVERY 100,000 QUERIES
+            if queries_since_last_save >= 100000 or end_idx == s1_vecs.shape[0]:
+                print(f"--> [SAVE] Checkpointing {len(out_s1)} pairs to disk...")
+                # Write current buffer to disk
+                for idx_save in range(len(out_s1)):
+                    f.write(f"{out_s1[idx_save]},{out_s2[idx_save]},{out_scores[idx_save]}\n")
+                
+                # Update state file
+                with open(f"{config.BASE_DIR}/code/business_entity_resolution/candidates_state.txt", "w") as sf:
+                    sf.write(str(end_idx))
+                    
+                # Clear buffer to save RAM
+                out_s1, out_s2, out_scores = [], [], []
+                queries_since_last_save = 0
+                
+    print(f"Blocking complete. All candidate pairs saved to {checkpoint_file}.")
+    
+    # Load the full file back as a DataFrame to pass to the next stage
+    print("Loading all generated candidates back into memory...")
+    return pd.read_csv(checkpoint_file)
