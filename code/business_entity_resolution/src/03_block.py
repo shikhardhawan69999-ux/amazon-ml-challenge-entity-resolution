@@ -122,7 +122,7 @@ def run_blocking():
         
         UNION ALL
         -- BLOCK 5: rare tokens
-        SELECT s1.entity_id, s2.entity_id, s2.candidate_source
+        SELECT s1_t.entity_id, s2.entity_id, s2.candidate_source
         FROM (
             SELECT entity_id, unnest(string_split(name_core, ' ')) as token FROM s1
         ) s1_t
