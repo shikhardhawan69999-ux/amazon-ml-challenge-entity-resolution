@@ -73,7 +73,7 @@ def run_blocking():
         )
         WHERE token != '' AND length(token) > 2
         GROUP BY token
-        HAVING count(*) BETWEEN 2 AND 5000;  -- exclude very common tokens
+        HAVING count(*) BETWEEN 2 AND 100;  -- ONLY VERY RARE TOKENS TO PREVENT EXPLOSION
     """)
     
     # Also index S2S3 tokens for fast join
