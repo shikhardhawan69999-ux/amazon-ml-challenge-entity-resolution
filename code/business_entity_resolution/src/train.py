@@ -41,8 +41,8 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
     s1 = preprocess.preprocess_dataframe(s1)
     s2s3 = preprocess.preprocess_dataframe(s2s3)
     
-    s1_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s1_clean.pkl"
-    s2s3_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s2s3_clean.pkl"
+    s1_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s1_clean.parquet"
+    s2s3_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s2s3_clean.parquet"
     
     import gc
     # CHECKPOINT 1: Check if Blocking is already done
@@ -50,13 +50,13 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
         print("\n[CHECKPOINT] Found existing Blocking pairs! Loading candidates directly...")
         candidates = pd.read_csv(candidates_ckpt)
         # We still need to save to disk because features step expects it from disk now
-        s1.to_pickle(s1_clean_path)
-        s2s3.to_pickle(s2s3_clean_path)
+        s1.to_parquet(s1_clean_path, index=False)
+        s2s3.to_parquet(s2s3_clean_path, index=False)
     else:
-        print("\n[RAM OPTIMIZATION] Offloading 12GB of extra Pandas columns to disk...")
-        # Save FULL dataframes to disk
-        s1.to_pickle(s1_clean_path)
-        s2s3.to_pickle(s2s3_clean_path)
+        print("\n[RAM OPTIMIZATION] Offloading 12GB of extra Pandas columns to disk (Using PARQUET for 100x Speed)...")
+        # Save FULL dataframes to disk ultra-fast
+        s1.to_parquet(s1_clean_path, index=False)
+        s2s3.to_parquet(s2s3_clean_path, index=False)
         
         # Keep ONLY the 2 columns needed for blocking to free up maximum RAM
         s1_blocking = s1[['entity_id', 'combined_text']].copy()
@@ -76,8 +76,8 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
         gc.collect()
     
     print("\n[RAM OPTIMIZATION] Reloading full Pandas data from disk for Feature Extraction...")
-    s1 = pd.read_pickle(s1_clean_path)
-    s2s3 = pd.read_pickle(s2s3_clean_path)
+    s1 = pd.read_parquet(s1_clean_path)
+    s2s3 = pd.read_parquet(s2s3_clean_path)
         
     feat_df = features.generate_features(candidates, s1, s2s3)
     
