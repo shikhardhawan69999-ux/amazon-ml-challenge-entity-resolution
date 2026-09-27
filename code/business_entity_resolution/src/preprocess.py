@@ -73,4 +73,15 @@ def preprocess_dataframe(df):
         df['pincode'] = df['business_address'].apply(extract_pincode)
             
     df['combined_text'] = df['business_name_clean'] + " " + df['business_address_clean']
+    
+    # CRITICAL RAM FIX: Drop the massive raw string columns now that we have clean versions
+    # This instantly frees up 3-4 GB of RAM!
+    cols_to_drop = ['business_name', 'business_address', 'city', 'state', 'zip_code', 'business_description']
+    for col in cols_to_drop:
+        if col in df.columns:
+            del df[col]
+            
+    import gc
+    gc.collect()
+    
     return df
