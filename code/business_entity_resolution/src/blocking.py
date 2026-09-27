@@ -29,17 +29,20 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     # If a trigram appears in more than 50,000 businesses, it's noise ("ltd", "pvt", "india")
     stop_cols = np.where(col_sums > 50000)[0]
     
-    # Create a diagonal mask to zero out these noisy columns instantly
-    diag = np.ones(s2s3_counts.shape[1], dtype=np.float32)
-    diag[stop_cols] = 0.0
-    diag_mat = sp.diags(diag)
-    
-    # Apply the mask and eliminate the zeros to physically free the RAM!
-    s2s3_counts = s2s3_counts.dot(diag_mat)
+    # -------------------------------------------------------------
+    # MEMORY FIX: Zero out noisy columns IN-PLACE using Numpy
+    # Matrix multiplication creates duplicate 3GB arrays and crashes RAM.
+    # np.isin directly modifies the underlying arrays using 0 extra RAM!
+    # -------------------------------------------------------------
+    mask_s2 = np.isin(s2s3_counts.indices, stop_cols)
+    s2s3_counts.data[mask_s2] = 0.0
     s2s3_counts.eliminate_zeros()
+    del mask_s2
     
-    s1_counts = s1_counts.dot(diag_mat)
+    mask_s1 = np.isin(s1_counts.indices, stop_cols)
+    s1_counts.data[mask_s1] = 0.0
     s1_counts.eliminate_zeros()
+    del mask_s1
     
     print("Applying TF-IDF Weights (In-Place to save 4GB RAM)...")
     tfidf = TfidfTransformer() 
