@@ -17,17 +17,36 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
                                    alternate_sign=False,
                                    dtype=np.float32)
     
+    import scipy.sparse as sp
+    print("Applying Manual Max-DF to remove 'ltd/pvt' noise and make math 1000x faster...")
+    
+    s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
+    s1_counts = vectorizer.transform(df_s1['combined_text'])
+    
+    # Calculate how many times each trigram appears
+    col_sums = np.array(s2s3_counts.sum(axis=0)).flatten()
+    
+    # If a trigram appears in more than 50,000 businesses, it's noise ("ltd", "pvt", "india")
+    stop_cols = np.where(col_sums > 50000)[0]
+    
+    # Create a diagonal mask to zero out these noisy columns instantly
+    diag = np.ones(s2s3_counts.shape[1], dtype=np.float32)
+    diag[stop_cols] = 0.0
+    diag_mat = sp.diags(diag)
+    
+    # Apply the mask and eliminate the zeros to physically free the RAM!
+    s2s3_counts = s2s3_counts.dot(diag_mat)
+    s2s3_counts.eliminate_zeros()
+    
+    s1_counts = s1_counts.dot(diag_mat)
+    s1_counts.eliminate_zeros()
+    
     print("Applying TF-IDF Weights (In-Place to save 4GB RAM)...")
     tfidf = TfidfTransformer() 
     
-    s2s3_counts = vectorizer.transform(df_s2s3['combined_text'])
     tfidf.fit(s2s3_counts) # Fit weights
     # copy=False prevents TfidfTransformer from creating a duplicate 3GB sparse matrix
     s2s3_vecs = tfidf.transform(s2s3_counts, copy=False) # Transforms IN-PLACE
-    
-    # We do NOT delete s2s3_counts because s2s3_vecs IS s2s3_counts due to in-place transform!
-    
-    s1_counts = vectorizer.transform(df_s1['combined_text'])
     s1_vecs = tfidf.transform(s1_counts, copy=False) # Transforms IN-PLACE
     gc.collect()
     
@@ -36,10 +55,9 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     # Transpose S2/S3 once for fast dot product
     s2s3_vecs_T = s2s3_vecs.T
     
-    # Common trigrams like "ltd" or "com" cause the sparse dot product to become densely populated.
-    # To prevent the similarity matrix from exploding in RAM, we use a micro-batch size of 50.
-    # The dot product is insanely fast, so 50 queries per batch is both safe and lightning fast!
-    batch_size = 50  
+    # Now that we have physically eliminated all dense noise columns (like "ltd"), 
+    # the sparse dot product is back to being TRULY sparse. We can safely do 5000 at a time!
+    batch_size = 5000  
     
     # Extract IDs
     s1_ids = df_s1['entity_id'].values
