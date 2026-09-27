@@ -67,7 +67,7 @@ def load_and_prepare_training_data(part_num=1, total_parts=1):
         del s2s3
         gc.collect()
         
-        candidates = blocking.generate_candidate_pairs(s1_blocking, s2s3_blocking)
+        candidates = blocking.generate_candidate_pairs(s1_blocking, s2s3_blocking, part_num=part_num)
         print(f"\n[CHECKPOINT] Saving Blocking pairs to {candidates_ckpt}...")
         candidates.to_csv(candidates_ckpt, index=False)
         

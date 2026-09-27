@@ -5,7 +5,7 @@ import gc
 import numpy as np
 from src import config
 
-def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
+def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS, part_num=1):
     print("Vectorizing text for blocking (Using HashingVectorizer for Ultra-Low RAM)...")
     
     # HashingVectorizer requires ZERO RAM for vocabulary building
@@ -80,15 +80,12 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
     # ---------------------------------------------------------
     # INCREMENTAL SAVE & RESUME MECHANISM
     # ---------------------------------------------------------
-    checkpoint_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_incremental.csv"
+    checkpoint_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_incremental_part{part_num}.csv"
+    state_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_state_part{part_num}.txt"
     start_batch_idx = 0
     
     if os.path.exists(checkpoint_file):
         print(f"Found incremental checkpoint at {checkpoint_file}!")
-        # Find how many lines are already processed to know where to resume
-        # We can't just count lines because 1 query = multiple lines.
-        # Instead we read the last processed source1_entity_id, but it's easier to just store state.
-        state_file = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_state.txt"
         if os.path.exists(state_file):
             with open(state_file, "r") as f:
                 start_batch_idx = int(f.read().strip())
@@ -146,7 +143,7 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS):
                     f.write(f"{out_s1[idx_save]},{out_s2[idx_save]},{out_scores[idx_save]}\n")
                 
                 # Update state file
-                with open(f"{config.BASE_DIR}/code/business_entity_resolution/candidates_state.txt", "w") as sf:
+                with open(state_file, "w") as sf:
                     sf.write(str(end_idx))
                     
                 # Clear buffer to save RAM
