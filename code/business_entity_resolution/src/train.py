@@ -1,23 +1,36 @@
+import argparse
 import pandas as pd
 import xgboost as xgb
 import os
 from src import config, preprocess, blocking, features
 
-def load_and_prepare_training_data():
-    features_ckpt = f"{config.BASE_DIR}/code/business_entity_resolution/features_checkpoint.csv"
-    candidates_ckpt = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_checkpoint.csv"
+def load_and_prepare_training_data(part_num=1, total_parts=1):
+    # Change checkpoint names so parts don't overwrite each other
+    features_ckpt = f"{config.BASE_DIR}/code/business_entity_resolution/features_part{part_num}.csv"
+    candidates_ckpt = f"{config.BASE_DIR}/code/business_entity_resolution/candidates_part{part_num}.csv"
+    s1_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s1_clean_part{part_num}.pkl"
+    s2s3_clean_path = f"{config.BASE_DIR}/code/business_entity_resolution/s2s3_clean.pkl"
     
     # CHECKPOINT 2: If final features already exist, skip EVERYTHING and load it!
     if os.path.exists(features_ckpt):
-        print("\n[CHECKPOINT] Found existing final features! Loading directly... (Skipping all previous heavy steps)")
+        print(f"\n[CHECKPOINT] Found existing final features for Part {part_num}! Loading directly...")
         return pd.read_csv(features_ckpt)
         
     # If no final features, load the raw data
-    print("Loading training data...")
+    print(f"Loading training data (Processing Part {part_num} of {total_parts})...")
     s1 = pd.read_csv(f"{config.TRAIN_DIR}/train_source1.tsv", sep="\t")
     
-    print("\n[DEBUG] Taking a 5,00,000 row sample of S1 to meet the 6 PM Deadline! (2 hour run)")
-    s1 = s1.head(500000).copy()
+    # -----------------------------------------------------------------
+    # DISTRIBUTED PROCESSING LOGIC (SPLITTING S1)
+    # -----------------------------------------------------------------
+    # Instead of just taking 500k, we split the 2.2M rows into chunks
+    chunk_size = len(s1) // total_parts
+    start_row = (part_num - 1) * chunk_size
+    # If it's the last part, take all remaining rows
+    end_row = len(s1) if part_num == total_parts else start_row + chunk_size
+    
+    print(f"\n[DISTRIBUTED] Laptop/Colab {part_num} is taking rows {start_row} to {end_row} out of {len(s1)}!")
+    s1 = s1.iloc[start_row:end_row].copy()
     
     s2 = pd.read_csv(f"{config.TRAIN_DIR}/train_source2.tsv", sep="\t")
     s3 = pd.read_csv(f"{config.TRAIN_DIR}/train_source3.tsv", sep="\t")
@@ -85,31 +98,42 @@ def load_and_prepare_training_data():
     
     return feat_df
 
-def train_model():
-    df = load_and_prepare_training_data()
+def train_model(part_num, total_parts):
+    df = load_and_prepare_training_data(part_num, total_parts)
     feature_cols = ['name_jaro', 'name_ratio', 'name_token_sort', 'name_core_jaro', 'addr_jaro', 'addr_ratio', 'pincode_match', 'country_match', 'blocking_score', 'semantic_similarity']
     
-    X = df[feature_cols]
-    y = df['label']
+    # We only train if total_parts == 1 (meaning it's not a distributed chunk)
+    # Or if we're explicitly running part 1 just as a test.
+    # In a real distributed setup, you would merge all 'features_partX.csv' files before training.
+    print(f"\n[INFO] Generated features for Part {part_num}. If you are doing distributed training, wait for all parts to finish, merge the CSVs, and train on the combined file!")
     
-    print("\n[1/2] Training XGBoost Classifier on RTX 4050...")
-    xgb_model = xgb.XGBClassifier(**config.XGB_PARAMS)
-    xgb_model.fit(X, y)
-    
-    xgb_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json"
-    xgb_model.save_model(xgb_model_path)
-    print(f"XGBoost Model saved to {xgb_model_path}")
-    
-    print("\n[2/2] Training LightGBM Classifier on RTX 4050...")
-    import lightgbm as lgb
-    lgbm_model = lgb.LGBMClassifier(**config.LGBM_PARAMS)
-    lgbm_model.fit(X, y)
-    
-    lgbm_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/lgbm_model.txt"
-    lgbm_model.booster_.save_model(lgbm_model_path)
-    print(f"LightGBM Model saved to {lgbm_model_path}")
-    
-    print("\n✅ Ensemble Dual-Training Complete! Models are ready for inference.")
+    if total_parts == 1:
+        X = df[feature_cols]
+        y = df['label']
+        
+        print("\n[1/2] Training XGBoost Classifier on RTX 4050...")
+        xgb_model = xgb.XGBClassifier(**config.XGB_PARAMS)
+        xgb_model.fit(X, y)
+        
+        xgb_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/xgb_model.json"
+        xgb_model.save_model(xgb_model_path)
+        print(f"XGBoost Model saved to {xgb_model_path}")
+        
+        print("\n[2/2] Training LightGBM Classifier on RTX 4050...")
+        import lightgbm as lgb
+        lgbm_model = lgb.LGBMClassifier(**config.LGBM_PARAMS)
+        lgbm_model.fit(X, y)
+        
+        lgbm_model_path = f"{config.BASE_DIR}/code/business_entity_resolution/lgbm_model.txt"
+        lgbm_model.booster_.save_model(lgbm_model_path)
+        print(f"LightGBM Model saved to {lgbm_model_path}")
+        
+        print("\n🏆 Ensemble Dual-Training Complete! Models are ready for inference.")
 
 if __name__ == "__main__":
-    train_model()
+    parser = argparse.ArgumentParser(description="Distributed Train Pipeline")
+    parser.add_argument("--part", type=int, default=1, help="Which chunk of S1 to process (e.g. 1)")
+    parser.add_argument("--total", type=int, default=1, help="Total number of chunks to split S1 into (e.g. 4)")
+    args = parser.parse_args()
+    
+    train_model(args.part, args.total)
