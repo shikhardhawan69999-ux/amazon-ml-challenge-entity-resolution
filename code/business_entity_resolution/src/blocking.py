@@ -51,10 +51,13 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS, p
     s1_counts.eliminate_zeros()
     del mask_s1
     
-    print("Skipping TF-IDF to save 4GB RAM! Using pure HashingVectorizer (Float32)...")
+    print("Applying TF-IDF Weights (In-Place to save 4GB RAM)...")
+    tfidf = TfidfTransformer() 
     
-    s2s3_vecs = s2s3_counts
-    s1_vecs = s1_counts
+    tfidf.fit(s2s3_counts) # Fit weights
+    # copy=False prevents TfidfTransformer from creating a duplicate 3GB sparse matrix
+    s2s3_vecs = tfidf.transform(s2s3_counts, copy=False) # Transforms IN-PLACE
+    s1_vecs = tfidf.transform(s1_counts, copy=False) # Transforms IN-PLACE
     gc.collect()
     
     print("Running Ultra-Fast Custom Sparse KNN (Bypassing Scikit-Learn's RAM bloat)...")
@@ -62,10 +65,9 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS, p
     # Transpose S2/S3 once for fast dot product
     s2s3_vecs_T = s2s3_vecs.T
     
-    # CRITICAL RAM FIX 5: Sparse Matrix Explosion!
-    # Even without dense columns, 5000 rows x 10 Million rows creates billions of non-zeros in the dot product.
-    # We MUST drop batch_size to 250 to keep RAM under 2GB per batch!
-    batch_size = 250  
+    # Now that we have physically eliminated all dense noise columns (like "ltd"), 
+    # the sparse dot product is back to being TRULY sparse. We can safely do 5000 at a time!
+    batch_size = 5000  
     
     # Extract IDs
     s1_ids = df_s1['entity_id'].values
