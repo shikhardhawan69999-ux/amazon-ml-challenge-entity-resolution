@@ -51,13 +51,10 @@ def generate_candidate_pairs(df_s1, df_s2s3, n_neighbors=config.KNN_NEIGHBORS, p
     s1_counts.eliminate_zeros()
     del mask_s1
     
-    print("Applying TF-IDF Weights (In-Place to save 4GB RAM)...")
-    tfidf = TfidfTransformer() 
+    print("Skipping TF-IDF to save 4GB RAM! Using pure HashingVectorizer (Float32)...")
     
-    tfidf.fit(s2s3_counts) # Fit weights
-    # copy=False prevents TfidfTransformer from creating a duplicate 3GB sparse matrix
-    s2s3_vecs = tfidf.transform(s2s3_counts, copy=False) # Transforms IN-PLACE
-    s1_vecs = tfidf.transform(s1_counts, copy=False) # Transforms IN-PLACE
+    s2s3_vecs = s2s3_counts
+    s1_vecs = s1_counts
     gc.collect()
     
     print("Running Ultra-Fast Custom Sparse KNN (Bypassing Scikit-Learn's RAM bloat)...")
